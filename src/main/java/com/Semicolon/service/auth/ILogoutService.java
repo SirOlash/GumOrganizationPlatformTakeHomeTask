@@ -1,4 +1,5 @@
 package com.Semicolon.service.auth;
 
-public class IlogoutService {
+public interface ILogoutService {
+    void logout(String sessionId);
 }
