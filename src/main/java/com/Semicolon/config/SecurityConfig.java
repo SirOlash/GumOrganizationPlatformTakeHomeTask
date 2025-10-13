@@ -5,6 +5,7 @@ import com.Semicolon.security.SessionAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -14,8 +15,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final AuthSessionRepository sessionRepo;
@@ -29,6 +32,20 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Completely bypass Spring Security filters for health/metrics endpoints.
+     * This is intentional for monitoring endpoints (they won't go through auth filters).
+     */
+    @Bean
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        return web -> web.ignoring()
+                // either pass path strings:
+                .requestMatchers("/.well-known/health", "/metrics");
+        // OR use AntPathRequestMatcher objects if you prefer:
+        // .requestMatchers(new AntPathRequestMatcher("/.well-known/health"),
+        //                  new AntPathRequestMatcher("/metrics"));
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
@@ -39,37 +56,29 @@ public class SecurityConfig {
         AntPathRequestMatcher refresh    = new AntPathRequestMatcher("/v1/auth/refresh-token", "POST");
         AntPathRequestMatcher logout     = new AntPathRequestMatcher("/v1/auth/logout", "POST");
 
-        // health & metrics (permit these to be called without auth)
-        AntPathRequestMatcher health     = new AntPathRequestMatcher("/.well-known/health", null);
-        AntPathRequestMatcher metrics    = new AntPathRequestMatcher("/metrics", null);
-
-        // dev/docs endpoints (allow any method)
         AntPathRequestMatcher h2Console  = new AntPathRequestMatcher("/h2-console/**", null);
         AntPathRequestMatcher apiDocs    = new AntPathRequestMatcher("/v3/api-docs/**", null);
         AntPathRequestMatcher swaggerUi  = new AntPathRequestMatcher("/swagger-ui/**", null);
         AntPathRequestMatcher swaggerHtml= new AntPathRequestMatcher("/swagger-ui.html", null);
 
-        // define a simple entry point to return 401 if not authenticated (clearer than default)
         AuthenticationEntryPoint entryPoint = (request, response, authException) ->
                 response.sendError(HttpStatus.UNAUTHORIZED.value(), "Unauthorized");
 
         http
-                .csrf(AbstractHttpConfigurer::disable) // JSON API, token-based auth
-                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())) // allow H2 console frames
+                .csrf(AbstractHttpConfigurer::disable)
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(entryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        // allow unauthenticated access to these specific endpoints
+                        // endpoints explicitly allowed (health & metrics are ignored above)
                         .requestMatchers(signup, verify, login, refresh, logout,
-                                health, metrics, h2Console, apiDocs, swaggerUi, swaggerHtml)
+                                h2Console, apiDocs, swaggerUi, swaggerHtml)
                         .permitAll()
-                        // all other requests require authentication
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable);
 
-        // custom filter that sets SecurityContext from sessionId header
         http.addFilterBefore(new SessionAuthenticationFilter(sessionRepo),
                 UsernamePasswordAuthenticationFilter.class);
 

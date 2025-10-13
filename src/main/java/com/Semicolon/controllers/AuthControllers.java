@@ -17,19 +17,19 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/v1/auth")
 public class AuthControllers {
-    private static final Logger log = LoggerFactory.getLogger(OutboxWorker.class);
-    @Autowired
-    private IRegistrationService registrationService;
+    private static final Logger log = LoggerFactory.getLogger(AuthControllers.class);
 
-    @Autowired
-    private IVerifyEmail verifyEmail;
+    private final IRegistrationService registrationService;
+    private final IVerifyEmail verifyEmail;
+    private final ILoginService loginService;
+    private final ILogoutService logoutService;
 
-    @Autowired
-    private ILoginService loginService;
-
-    @Autowired
-    private ILogoutService logoutService;
-
+   public AuthControllers(IRegistrationService registrationService, IVerifyEmail verifyEmail, ILoginService loginService, ILogoutService logoutService) {
+       this.registrationService = registrationService;
+       this.verifyEmail = verifyEmail;
+       this.loginService = loginService;
+       this.logoutService = logoutService;
+   }
     @PostMapping("/signup")
     public ResponseEntity<AdminRegistrationResponse> signup(@Valid @RequestBody AdminRegistrationRequest req) {
         AdminRegistrationResponse resp = registrationService.register(req);

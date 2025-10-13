@@ -14,7 +14,7 @@ import java.util.UUID;
 public interface IProgramService {
     ProgramResponse createProgram(UUID userId, CreateProgramRequest request);
     ProgramResponse updateProgram(UUID userId, UUID programId, UpdateProgramRequest request);
-    ProgramResponse getProgram(UUID userId, FindProgramRequest request);
+    ProgramResponse getProgram(UUID userId, UUID programId);
     List<ProgramsListResponse> listPrograms(UUID userId);
 //    Page<ProgramResponse> listPrograms(UUID userId, UUID organizationId, String q, String status, int page, int size);
     ProgramResponse archiveProgram(UUID userId, ArchiveProgramRequest request);

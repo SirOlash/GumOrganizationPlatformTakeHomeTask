@@ -129,7 +129,7 @@ public class ProgramServiceImpl implements IProgramService {
 
     @Override
     @Transactional(readOnly = true)
-    public ProgramResponse getProgram(UUID userId, FindProgramRequest request) {
+    public ProgramResponse getProgram(UUID userId, UUID programId) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
         Organization organization = user.getOrganization();
@@ -138,12 +138,7 @@ public class ProgramServiceImpl implements IProgramService {
         }
         UUID organizationId = organization.getId();
 
-        if (!StringUtils.hasText(request.getProgramName())) {
-            throw new ProgramNotFoundException("programName is required");
-        }
-        String programName = request.getProgramName().trim();
-
-        Program p = programRepo.findByNameIgnoreCaseAndOrganization_Id(programName, organizationId)
+        Program p = programRepo.findByIdAndOrganization_Id(programId, organizationId)
                 .orElseThrow(() -> new ProgramNotFoundException("Program not found"));
         if (p.getStatus() == ProgramStatus.ARCHIVED) {
             throw new ProgramNotFoundException("Program is archived");

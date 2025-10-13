@@ -41,7 +41,7 @@ public class ProgramControllers {
         return ResponseEntity.status(HttpStatus.CREATED).body(resp);
     }
 
-    @PatchMapping("/{programId}")
+    @PatchMapping("/update-program/{programId}")
     public ResponseEntity<ProgramResponse> updateProgram(
             @AuthenticationPrincipal UUID userId,
             @PathVariable UUID programId,
@@ -54,15 +54,13 @@ public class ProgramControllers {
         return ResponseEntity.ok(resp);
     }
 
-    @GetMapping("/show-program")
+    @GetMapping("/show-program/{programId}")
     public ResponseEntity<ProgramResponse> showProgram(
             @AuthenticationPrincipal UUID userId,
-            @Valid @RequestBody FindProgramRequest request) {
+            @PathVariable UUID programId) {
 
         if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-
-        log.debug("getProgramByName called by user={} name={}", userId, request.getProgramName());
-        ProgramResponse resp = programService.getProgram(userId, request);
+        ProgramResponse resp = programService.getProgram(userId, programId);
         return ResponseEntity.ok(resp);
     }
 
