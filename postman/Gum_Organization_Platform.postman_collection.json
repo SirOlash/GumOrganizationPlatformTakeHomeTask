@@ -1,0 +1,232 @@
+{
+  "info": {
+    "name": "Semicolon - Local API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0",
+    "_postman_id": "semicolon-local-collection"
+  },
+  "item": [
+    {
+      "name": "Signup (returns verify token)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"organizationName\": \"{{organizationName}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/v1/auth/signup", "host": ["{{baseUrl}}"], "path": ["v1","auth","signup"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.token) { pm.environment.set('verifyToken', json.token); }",
+              "pm.test('signup returned token or message', () => pm.expect(json.message || json.token).to.not.be.undefined);",
+              "pm.test('status is 201 or 202', () => pm.expect(pm.response.code).to.be.oneOf([201,202,200]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Verify Email",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{verifyToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/v1/auth/verify-email", "host": ["{{baseUrl}}"], "path": ["v1","auth","verify-email"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('verify responded', () => pm.expect(pm.response.code).to.be.oneOf([200,202]));",
+              "const j = pm.response.json();",
+              "if (j.message === 'successful') { pm.environment.set('emailVerified','true'); }",
+              "pm.environment.set('lastVerifyMessage', j.message || '');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login (captures sessionId + refreshToken)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/v1/auth/login", "host":["{{baseUrl}}"], "path":["v1","auth","login"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "// support both 'sessionId' and 'accessToken' naming",
+              "if (json.sessionId) pm.environment.set('accessToken', json.sessionId);",
+              "if (json.accessToken) pm.environment.set('accessToken', json.accessToken);",
+              "if (json.refreshToken) pm.environment.set('refreshToken', json.refreshToken);",
+              "pm.test('login returned access token', () => pm.expect(pm.environment.get('accessToken')).to.not.be.undefined);",
+              "pm.test('login returned refresh token', () => pm.expect(pm.environment.get('refreshToken')).to.not.be.undefined);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Refresh Token (rotate)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": { "mode":"raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+        "url": { "raw": "{{baseUrl}}/v1/auth/refresh-token", "host":["{{baseUrl}}"], "path":["v1","auth","refresh-token"] }
+      },
+      "event": [
+        {
+          "listen":"test",
+          "script": { "exec": [
+            "const json = pm.response.json();",
+            "if (json.sessionId) pm.environment.set('accessToken', json.sessionId);",
+            "if (json.accessToken) pm.environment.set('accessToken', json.accessToken);",
+            "if (json.refreshToken) pm.environment.set('refreshToken', json.refreshToken);",
+            "pm.test('refresh rotated tokens', () => pm.expect(pm.environment.get('accessToken')).to.not.be.undefined);"
+          ] }
+        }
+      ]
+    },
+    {
+      "name": "View Org Profile (authenticated)",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "url": { "raw": "{{baseUrl}}/org/me", "host":["{{baseUrl}}"], "path":["org","me"] }
+      }
+    },
+    {
+      "name": "Update Org Profile (authenticated)",
+      "request": {
+        "method": "PATCH",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "body": { "mode":"raw", "raw": "{\n  \"logoUrl\": \"https://example.com/logo.png\",\n  \"website\": \"https://example.org\",\n  \"industry\": \"EdTech\",\n  \"description\": \"We help devs...\"\n}" },
+        "url": { "raw": "{{baseUrl}}/org/update-org-profile", "host":["{{baseUrl}}"], "path":["org","update-org-profile"] }
+      }
+    },
+    {
+      "name": "Create Invite (admin)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "body": { "mode":"raw", "raw": "{\n  \"email\": \"{{inviteEmail}}\",\n  \"role\": \"MEMBER\"\n}" },
+        "url": { "raw": "{{baseUrl}}/v1/invites/admin/invite-member", "host":["{{baseUrl}}"], "path":["v1","invites","admin","invite-member"] }
+      },
+      "event": [ { "listen":"test", "script": { "exec": [
+        "const j = pm.response.json();",
+        "if (j.token) pm.environment.set('inviteToken', j.token);",
+        "pm.test('invite returned token', () => pm.expect(pm.environment.get('inviteToken')).to.not.be.undefined)"
+      ] } } ]
+    },
+    {
+      "name": "View Invites (authenticated)",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "url": { "raw": "{{baseUrl}}/v1/invites/view-invites", "host":["{{baseUrl}}"], "path":["v1","invites","view-invites"] }
+      }
+    },
+    {
+      "name": "Accept Invite (authenticated)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "body": { "mode":"raw", "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}" },
+        "url": { "raw": "{{baseUrl}}/v1/invites/accept-invite", "host":["{{baseUrl}}"], "path":["v1","invites","accept-invite"] }
+      }
+    },
+    {
+      "name": "Create Program (Admin/Manager)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "body": { "mode":"raw", "raw": "{\n  \"name\": \"My Program\",\n  \"description\": \"A sample program\"\n}" },
+        "url": { "raw": "{{baseUrl}}/v1/programs", "host":["{{baseUrl}}"], "path":["v1","programs"] }
+      },
+      "event": [ { "listen":"test", "script": { "exec": [
+        "const j = pm.response.json();",
+        "if (j.id) pm.environment.set('programId', j.id);",
+        "pm.test('program created', () => pm.expect(pm.response.code).to.be.oneOf([201,200]));"
+      ] } } ]
+    },
+    {
+      "name": "List Programs",
+      "request": { "method": "GET", "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ], "url": { "raw": "{{baseUrl}}/v1/programs", "host":["{{baseUrl}}"], "path":["v1","programs"] } }
+    },
+    {
+      "name": "Show Program",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "url": { "raw": "{{baseUrl}}/v1/programs/show-program/{{programId}}", "host":["{{baseUrl}}"], "path":["v1","programs","show-program","{{programId}}"] }
+      }
+    },
+    {
+      "name": "Update Program",
+      "request": {
+        "method": "PATCH",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "body": { "mode":"raw", "raw": "{\n  \"name\": \"My Program (Edited)\",\n  \"description\": \"Updated description\"\n}" },
+        "url": { "raw": "{{baseUrl}}/v1/programs/update-program/{{programId}}", "host":["{{baseUrl}}"], "path":["v1","programs","update-program","{{programId}}"] }
+      }
+    },
+    {
+      "name": "Archive Program",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "body": { "mode":"raw", "raw": "{\n  \"programName\": \"My Program (Edited)\"\n}" },
+        "url": { "raw": "{{baseUrl}}/v1/programs/archive-program", "host":["{{baseUrl}}"], "path":["v1","programs","archive-program"] }
+      }
+    },
+    {
+      "name": "Health",
+      "request": { "method":"GET", "url": { "raw": "{{baseUrl}}/.well-known/health", "host":["{{baseUrl}}"], "path":[".well-known","health"] } }
+    }
+  ],
+  "event": [],
+  "variable": [],
+  "auth": {},
+  "environment": {
+    "id": "semicolon-local-env",
+    "name": "Semicolon Local",
+    "values": [
+      { "key": "baseUrl", "value": "http://localhost:8080", "enabled": true },
+      { "key": "email", "value": "alice@example.com", "enabled": true },
+      { "key": "password", "value": "Passw0rd!", "enabled": true },
+      { "key": "organizationName", "value": "semicolon", "enabled": true },
+      { "key": "verifyToken", "value": "", "enabled": true },
+      { "key": "accessToken", "value": "", "enabled": true },
+      { "key": "refreshToken", "value": "", "enabled": true },
+      { "key": "inviteEmail", "value": "bob@example.com", "enabled": true },
+      { "key": "inviteToken", "value": "", "enabled": true },
+      { "key": "programId", "value": "", "enabled": true }
+    ],
+    "_postman_variable_scope": "environment",
+    "_postman_exported_at": "2025-10-13T00:00:00Z",
+    "_postman_exported_using": "Postman/10.0.0"
+  }
+}
