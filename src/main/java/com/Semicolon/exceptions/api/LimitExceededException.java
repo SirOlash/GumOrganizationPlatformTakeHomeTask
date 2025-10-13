@@ -10,4 +10,11 @@ public class LimitExceededException extends ApiException{
                 HttpStatus.TOO_MANY_REQUESTS,
                 new FieldDetail("Limit", "Exceeded"));
     }
+
+    public LimitExceededException(String message, String field, String rule) {
+        super("LIMIT_EXCEEDED",
+                message,
+                HttpStatus.TOO_MANY_REQUESTS,
+                new FieldDetail(field,rule));
+    }
 }

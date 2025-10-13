@@ -68,12 +68,16 @@ public class InviteServiceImpl implements IInviteService{
         });
         int limit = planLimit(org.getPlan());
         if (org.getMembersCount() >= limit) {
-            throw new LimitExceededException("organization has reached its plan members limit");
+            throw new LimitExceededException("Plan limit exceeded", "members", "limit");
         }
 
         List<InviteStatus> active = List.of(InviteStatus.ISSUED, InviteStatus.QUEUED, InviteStatus.SENT);
         boolean exists = inviteRepo.existsByEmailIgnoreCaseAndOrganization_IdAndStatusIn(email, org.getId(), active);
         if (exists) throw new InviteConflictException("active invite already exists for this email");
+
+        if (request.getRole() == Role.ADMIN) {
+            throw new InviteForbiddenException("You can't invite another admin");
+        }
 
         String token = UUID.randomUUID().toString() + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         Instant expiresAt = Instant.now().plus(DEFAULT_EXPIRES_DAYS, ChronoUnit.DAYS);
@@ -199,7 +203,7 @@ public class InviteServiceImpl implements IInviteService{
         return new AcceptInviteResponse("INVITE_ACCEPTED", "Invite accepted and membership created");
     }
 
-    private int planLimit(Plan plan) {
+    public int planLimit(Plan plan) {
         if (plan == null) return Integer.MAX_VALUE;
         switch (plan) {
             case FREE: return 5;

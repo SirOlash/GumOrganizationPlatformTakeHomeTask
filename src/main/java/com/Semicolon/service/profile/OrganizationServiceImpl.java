@@ -1,12 +1,21 @@
 package com.Semicolon.service.profile;
 
 import com.Semicolon.data.models.Organization;
+import com.Semicolon.data.models.Plan;
+import com.Semicolon.data.models.Role;
 import com.Semicolon.data.models.User;
 import com.Semicolon.data.repositories.OrganizationRepository;
 import com.Semicolon.data.repositories.UserRepository;
 import com.Semicolon.dtos.request.UpdateOrgProfileRequest;
+import com.Semicolon.dtos.request.UpdatePlanRequest;
 import com.Semicolon.dtos.response.OrganizationProfileResponse;
+import com.Semicolon.dtos.response.UpdatePlanResponse;
+import com.Semicolon.exceptions.api.InviteForbiddenException;
+import com.Semicolon.exceptions.api.OrganizationNotFoundException;
+import com.Semicolon.exceptions.api.PlanDowngradeBlockedException;
 import com.Semicolon.exceptions.api.UserNotFoundException;
+import com.Semicolon.service.invite.InviteServiceImpl;
+import com.Semicolon.service.program.ProgramServiceImpl;
 import com.Semicolon.service.utils.LogoValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +32,8 @@ import java.util.UUID;
 @Service
 public class OrganizationServiceImpl implements IOrganizationService{
 
+    private ProgramServiceImpl programService;
+    private InviteServiceImpl inviteService;
     private final UserRepository userRepo;
     private final OrganizationRepository orgRepo;
     private final LogoValidator logoValidator;
@@ -70,6 +81,47 @@ public class OrganizationServiceImpl implements IOrganizationService{
         return buildProfileResponse(org);
     }
 
+    @Override
+    @Transactional
+    public UpdatePlanResponse changePlan(UUID userId, UpdatePlanRequest request){
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
+        Organization organization = user.getOrganization();
+        if (organization == null) {
+            throw new OrganizationNotFoundException("User is not attached to an organization");
+        }
+        UUID organizationId = organization.getId();
+
+        Organization org = orgRepo.findByIdForUpdate(organizationId)
+                .orElseThrow(() -> new OrganizationNotFoundException("Organization not found: " + organizationId));
+
+        if (user.getRole() != Role.ADMIN){
+            throw new InviteForbiddenException("Only organization admins may change plan");
+        }
+        Plan newPlan = request.getPlan();
+
+        Plan oldPlan = org.getPlan();
+        if (oldPlan == newPlan){
+            return new UpdatePlanResponse(oldPlan, newPlan, Instant.now(), "no-op: same plan");
+        }
+
+        int targetMemberLimit = inviteService.planLimit(newPlan);
+        int targetProgramLimit = programService.planLimit(newPlan);
+
+        if (org.getMembersCount() > targetMemberLimit || org.getProgramsCount() > targetProgramLimit) {
+            String details = String.format("members=%d/%d programs=%d/%d",
+                    org.getMembersCount(), targetMemberLimit, org.getProgramsCount(), targetProgramLimit);
+            throw new PlanDowngradeBlockedException(details);
+        }
+        org.setPlan(newPlan);
+        org.setUpdatedAt(Instant.now());
+        orgRepo.save(org);
+
+        return new UpdatePlanResponse(oldPlan, newPlan, Instant.now(), "Plan updated");
+    }
+
+
+
     private OrganizationProfileResponse buildProfileResponse(Organization org) {
         OrganizationProfileResponse dto = new OrganizationProfileResponse();
                 dto.setId(org.getId());
@@ -98,4 +150,5 @@ public class OrganizationServiceImpl implements IOrganizationService{
         dto.setMissingFields(missing);
         return dto;
     }
+
 }
